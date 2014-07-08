@@ -41,9 +41,10 @@ var chart = new Highcharts.Chart({
 });
 
 function updateChart(interest, fees, remaining) {
-  chart.series[0].setData(remaining);
-  chart.series[1].setData(interest);
-  chart.series[2].setData(fees);
+  // update chart data but don't redraw
+  chart.series[0].setData(remaining, false);
+  chart.series[1].setData(interest, false);
+  chart.series[2].setData(fees, false);
 }
 
 function updateTable(paid, interest, years, debt) {
@@ -62,6 +63,7 @@ var DegreeBandSelector = $('#DegreeBandSelector');
 DegreeBandSelector.change(function () {
     updateFeesSlider();
     updateAll();
+    chart.redraw();
 });
 
 /*    Setup Sliders    */
@@ -72,29 +74,63 @@ var sliderOptions = {
   selection: "none"
 };
 
-var InflationRateSlider = $('#InflationRateSlider').slider(sliderOptions);
-InflationRateSlider.on('slide', function (ev) {
+function updateUnchanged(elementID) {
+    // calls updateAll() then redraw chart if HTML is unchanged after timeout
+    updateAll();
+    var curHTML = $(elementID)[0].innerHTML;
+    setTimeout(function () {
+      var newHTML = $(elementID)[0].innerHTML;
+      if (newHTML == curHTML) {
+        chart.redraw();
+      }
+    }, 100);
+}
+
+// InflationRate
+function updateInflationRate (ev) {
   $('#InflationRateBox')[0].innerHTML = ev.value.toFixed(1) + " %";
-  updateAll();
-});
+  if (ev.value > BondRateSlider.data('slider').getValue()) {
+    // inflation rate can't rise above bond rate
+    BondRateSlider.data('slider').setValue(ev.value);
+    $('#BondRateBox')[0].innerHTML = ev.value.toFixed(1) + " %";
+  }
+  updateUnchanged('#InflationRateBox');
+}
+var InflationRateSlider = $('#InflationRateSlider').slider(sliderOptions);
+InflationRateSlider.on('slide', updateInflationRate);
+InflationRateSlider.on('slideStop', updateInflationRate);
 
-var BondRateSlider = $('#BondRateSlider').slider(sliderOptions);
-BondRateSlider.on('slide', function (ev) {
+// BondRate
+function updateBondRate (ev) {
   $('#BondRateBox')[0].innerHTML = ev.value.toFixed(1) + " %";
-  updateAll();
-});
+  if (ev.value < InflationRateSlider.data('slider').getValue()) {
+    // bond rate can't drop below inflation rate
+    InflationRateSlider.data('slider').setValue(ev.value);
+    $('#InflationRateBox')[0].innerHTML = ev.value.toFixed(1) + " %";
+  }
+  updateUnchanged('#BondRateBox');
+}
+var BondRateSlider = $('#BondRateSlider').slider(sliderOptions);
+BondRateSlider.on('slide', updateBondRate);
+BondRateSlider.on('slideStop', updateBondRate);
 
-var DegreeLengthSlider = $('#DegreeLengthSlider').slider(sliderOptions);
-DegreeLengthSlider.on('slide', function (ev) {
+// DegreeLength
+function updateDegreeLength (ev) {
   $('#DegreeLengthBox')[0].innerHTML = ev.value;
-  updateAll();
-});
+  updateUnchanged('#DegreeLengthBox');
+}
+var DegreeLengthSlider = $('#DegreeLengthSlider').slider(sliderOptions);
+DegreeLengthSlider.on('slide', updateDegreeLength);
+DegreeLengthSlider.on('slideStop', updateDegreeLength);
 
-var TuitionFeesSlider = $('#TuitionFeesSlider').slider(sliderOptions);
-TuitionFeesSlider.on('slide', function (ev) {
+// TuitionFees
+function updateTuitionFees (ev) {
   $('#TuitionFeesBox')[0].innerHTML = "$ " + ev.value.toFixed(0) + " K";
-  updateAll();
-});
+  updateUnchanged('#TuitionFeesBox');
+}
+var TuitionFeesSlider = $('#TuitionFeesSlider').slider(sliderOptions);
+TuitionFeesSlider.on('slide', updateTuitionFees);
+TuitionFeesSlider.on('slideStop', updateTuitionFees);
 
 function updateFeesSlider() {
     var min, max;
@@ -170,23 +206,32 @@ function updateFeesSlider() {
     $('#TuitionFeesBox')[0].innerHTML = "$ " +  newVal.toFixed(0) + " K";
 }
 
-var GapYearSlider = $('#GapYearSlider').slider(sliderOptions);
-GapYearSlider.on('slide', function (ev) {
+// GapYear
+function updateGapYear (ev) {
   $('#GapYearBox')[0].innerHTML = ev.value;
-  updateAll();
-});
+  updateUnchanged('#GapYearBox');
+}
+var GapYearSlider = $('#GapYearSlider').slider(sliderOptions);
+GapYearSlider.on('slide', updateGapYear);
+GapYearSlider.on('slideStop', updateGapYear);
 
-var StartingSalarySlider = $('#StartingSalarySlider').slider(sliderOptions);
-StartingSalarySlider.on('slide', function (ev) {
+// StartingSalary
+function updateStartingSalary (ev) {
   $('#StartingSalaryBox')[0].innerHTML = "$ " + ev.value.toFixed(0) + " K";
-  updateAll();
-});
+  updateUnchanged('#StartingSalaryBox');
+}
+var StartingSalarySlider = $('#StartingSalarySlider').slider(sliderOptions);
+StartingSalarySlider.on('slide', updateStartingSalary);
+StartingSalarySlider.on('slideStop', updateStartingSalary);
 
-var SalaryIncreaseSlider = $('#SalaryIncreaseSlider').slider(sliderOptions);
-SalaryIncreaseSlider.on('slide', function (ev) {
+// SalaryIncrease
+function updateSalaryIncrease (ev) {
   $('#SalaryIncreaseBox')[0].innerHTML = ev.value.toFixed(1) + " %";
-  updateAll();
-});
+  updateUnchanged('#SalaryIncreaseBox');
+}
+var SalaryIncreaseSlider = $('#SalaryIncreaseSlider').slider(sliderOptions);
+SalaryIncreaseSlider.on('slide', updateSalaryIncrease);
+SalaryIncreaseSlider.on('slideStop', updateSalaryIncrease);
 
 function getData() {
   return {
@@ -202,7 +247,8 @@ function getData() {
 }
 
 function updateAll() {
-  /* Compute costs and update chart */
+  // Compute costs and update tables and chart data
+  // Note: you will need to call chart.redraw() afterwards
   var data = getData();
   var inflation = data.InflationRate;
   var bondRate = data.BondRate;
@@ -444,3 +490,4 @@ function updateAll() {
 
 updateFeesSlider();
 updateAll();
+chart.redraw();
